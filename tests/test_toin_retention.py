@@ -238,6 +238,24 @@ def test_filesystem_backend_writes_compact_json(tmp_path) -> None:
     assert "  " not in path.read_text(encoding="utf-8")
 
 
+@pytest.mark.windows_newline
+def test_filesystem_backend_writes_pin_lf(monkeypatch, tmp_path) -> None:
+    import headroom.telemetry.backends.filesystem as filesystem
+
+    calls: list[dict] = []
+    real_open = open
+
+    def recording_open(fd, *args, **kwargs):
+        calls.append(kwargs)
+        return real_open(fd, *args, **kwargs)
+
+    monkeypatch.setattr(filesystem, "open", recording_open, raising=False)
+    FileSystemTOINBackend(str(tmp_path / "toin.json")).save({"patterns": {}})
+
+    # Artifact bytes alone cannot detect a missing newline pin on POSIX.
+    assert [call.get("newline") for call in calls] == ["\n"]
+
+
 def test_filesystem_backend_skips_oversized_store(tmp_path) -> None:
     path = tmp_path / "toin.json"
     path.write_text("x" * 100, encoding="utf-8")
